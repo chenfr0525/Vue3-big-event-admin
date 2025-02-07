@@ -5,6 +5,11 @@ const userStore = useUserStore()
 
 <template>
   <div>
+    <hr>
+    <RouterView></RouterView>
+
+    <hr>
+    <hr>
     我是App
     <el-button>点击</el-button>
     <el-button>退出</el-button>

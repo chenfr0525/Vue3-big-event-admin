@@ -113,3 +113,99 @@
 
 ## 数据交互 - 请求工具设计
 
+### 创建axios实例
+
+使用axios来请求后端接口，一般都会对axios进行一些配置（比如配置基础地址等）
+
+一般项目开发中，都会对axios进行基本的二次封装，单独封装到一个模块中，便于使用
+
+1. 安装axios：pnpm add axios
+
+2. 新建 `utils/request.js` 封装 axios 模块
+
+   利用 axios.create 创建一个自定义的 axios 来使用
+
+   http://www.axios-js.com/zh-cn/docs/#axios-create-config
+
+   ~~~javascript
+   import axios from 'axios'
+
+   const baseURL = 'http://big-event-vue-api-t.itheima.net'
+
+   const instance = axios.create({
+     // TODO 1. 基础地址，超时时间
+   })
+
+   instance.interceptors.request.use(
+     (config) => {
+       // TODO 2. 携带token
+       return config
+     },
+     (err) => Promise.reject(err)
+   )
+
+   instance.interceptors.response.use(
+     (res) => {
+       // TODO 3. 处理业务失败
+       // TODO 4. 摘取核心响应数据
+       return res
+     },
+     (err) => {
+       // TODO 5. 处理401错误
+       return Promise.reject(err)
+     }
+   )
+
+   export default instance
+   ~~~
+
+### 完成axios基本配置
+
+~~~javascript
+import { useUserStore } from '@/stores/user'
+import axios from 'axios'
+import router from '@/router'
+import { ElMessage } from 'element-plus'
+
+const baseURL = 'http://big-event-vue-api-t.itheima.net'
+
+const instance = axios.create({
+  baseURL,
+  timeout: 100000
+})
+
+instance.interceptors.request.use(
+  (config) => {
+    const userStore = useUserStore()
+    if (userStore.token) {
+      config.headers.Authorization = userStore.token
+    }
+    return config
+  },
+  (err) => Promise.reject(err)
+)
+
+instance.interceptors.response.use(
+  (res) => {
+    if (res.data.code === 0) {
+      return res
+    }
+    ElMessage({ message: res.data.message || '服务异常', type: 'error' })
+    return Promise.reject(res.data)
+  },
+  (err) => {
+    ElMessage({ message: err.response.data.message || '服务异常', type: 'error' })
+    console.log(err)
+    if (err.response?.status === 401) {
+      router.push('/login')
+    }
+    return Promise.reject(err)
+  }
+)
+
+export default instance
+export { baseURL }
+~~~
+
+## 首页整体路由设计
+
