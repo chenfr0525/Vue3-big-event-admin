@@ -209,3 +209,315 @@ export { baseURL }
 
 ## 首页整体路由设计
 
+###  实现目标
+
+- 完成整体路由规划【搞清楚要做几个页面，它们分别在哪个路由下面，怎么跳转的.....】
+- 通过观察,  点击左侧导航,  右侧区域在切换,  那右侧区域内容一直在变,  那这个地方就是一个路由的出口
+- 我们需要搭建嵌套路由
+
+目标：
+
+- 把项目中所有用到的组件及路由表, 约定下来
+
+### 约定路由规则
+
+| path             | 文件                             | 功能      | 组件名          | 路由级别 |
+| ---------------- | -------------------------------- | --------- | --------------- | -------- |
+| /login           | views/login/LoginPage.vue        | 登录&注册 | LoginPage       | 一级路由 |
+| /                | views/layout/LayoutContainer.vue | 布局架子  | LayoutContainer | 一级路由 |
+| /article/manage  | views/article/ArticleManage.vue  | 文章管理  | ArticleManage   | 二级路由 |
+| /article/channel | views/article/ArticleChannel.vue | 频道管理  | ArticleChannel  | 二级路由 |
+| /user/profile    | views/user/UserProfile.vue       | 个人详情  | UserProfile     | 二级路由 |
+| /user/avatar     | views/user/UserAvatar.vue        | 更换头像  | UserAvatar      | 二级路由 |
+| /user/password   | views/user/UserPassword.vue      | 重置密码  | UserPassword    | 二级路由 |
+
+# 登录注册页面 [element-plus 表单 & 表单校验]
+
+## 注册登录 静态结构 & 基本切换
+
+1. 安装 element-plus 图标库pnpm i @element-plus/icons-vue
+2. 静态结构准备
+
+## 注册功能
+
+### 实现注册校验
+
+【需求】注册页面基本校验
+
+1. 用户名非空，长度校验5-10位
+2. 密码非空，长度校验6-15位
+3. 再次输入密码，非空，长度校验6-15位
+
+【进阶】再次输入密码需要自定义校验规则，和密码框值一致（可选）
+
+注意：
+
+1. model 属性绑定 form 数据对象
+
+```jsx
+const formModel = ref({
+  username: '',
+  password: '',
+  repassword: ''
+})
+
+<el-form :model="formModel" >
+```
+
+1. v-model 绑定 form 数据对象的子属性
+
+```jsx
+<el-input
+  v-model="formModel.username"
+  :prefix-icon="User"
+  placeholder="请输入用户名"
+></el-input>
+... 
+(其他两个也要绑定)
+```
+
+1. rules 配置校验规则
+
+```jsx
+<el-form :rules="rules" >
+    
+const rules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 5, max: 10, message: '用户名必须是5-10位的字符', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    {
+      pattern: /^\S{6,15}$/,
+      message: '密码必须是6-15位的非空字符',
+      trigger: 'blur'
+    }
+  ],
+  repassword: [
+    { required: true, message: '请再次输入密码', trigger: 'blur' },
+    {
+      pattern: /^\S{6,15}$/,
+      message: '密码必须是6-15的非空字符',
+      trigger: 'blur'
+    },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== formModel.value.password) {
+          callback(new Error('两次输入密码不一致!'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+}
+```
+
+1. prop 绑定校验规则
+
+```jsx
+<el-form-item prop="username">
+  <el-input
+    v-model="formModel.username"
+    :prefix-icon="User"
+    placeholder="请输入用户名"
+  ></el-input>
+</el-form-item>
+... 
+(其他两个也要绑定prop)
+```
+
+### 注册前的预校验
+
+需求：点击注册按钮，注册之前，需要先校验
+
+1. 通过 ref 获取到 表单组件
+
+```jsx
+const form = ref()
+
+<el-form ref="form">
+```
+
+1. 注册之前进行校验
+
+```jsx
+<el-button
+  @click="register"
+  class="button"
+  type="primary"
+  auto-insert-space
+>
+  注册
+</el-button>
+
+const register = async () => {
+  await form.value.validate()
+  console.log('开始注册请求')
+}
+```
+
+### 封装 api 实现注册功能
+
+需求：封装注册api，进行注册，注册成功切换到登录
+
+1. 新建 api/user.js 封装
+
+```jsx
+import request from '@/utils/request'
+
+export const userRegisterService = ({ username, password, repassword }) =>
+  request.post('/api/reg', { username, password, repassword })
+```
+
+1. 页面中调用
+
+```jsx
+const register = async () => {
+  await form.value.validate()
+  await userRegisterService(formModel.value)
+  ElMessage.success('注册成功')
+  // 切换到登录
+  isRegister.value = false
+}
+```
+
+1. eslintrc 中声明全局变量名,  解决 ElMessage 报错问题
+
+```jsx
+module.exports = {
+  ...
+  globals: {
+    ElMessage: 'readonly',
+    ElMessageBox: 'readonly',
+    ElLoading: 'readonly'
+  }
+}
+```
+
+## 登录功能
+
+### 实现登录校验
+
+【需求说明】给输入框添加表单校验
+
+1. 用户名不能为空，用户名必须是5-10位的字符，失去焦点 和 修改内容时触发校验
+2. 密码不能为空，密码必须是6-15位的字符，失去焦点 和 修改内容时触发校验
+
+操作步骤：
+
+1. model 属性绑定 form 数据对象，直接绑定之前提供好的数据对象即可
+
+```jsx
+<el-form :model="formModel" >
+```
+
+1. rules 配置校验规则，共用注册的规则即可
+
+```jsx
+<el-form :rules="rules" >
+```
+
+1. v-model 绑定 form 数据对象的子属性
+
+```jsx
+<el-input
+  v-model="formModel.username"
+  :prefix-icon="User"
+  placeholder="请输入用户名"
+></el-input>
+
+<el-input
+  v-model="formModel.password"
+  name="password"
+  :prefix-icon="Lock"
+  type="password"
+  placeholder="请输入密码"
+></el-input>
+```
+
+1. prop 绑定校验规则
+
+```jsx
+<el-form-item prop="username">
+  <el-input
+    v-model="formModel.username"
+    :prefix-icon="User"
+    placeholder="请输入用户名"
+  ></el-input>
+</el-form-item>
+... 
+```
+
+1. 切换的时候重置
+
+```jsx
+watch(isRegister, () => {
+  formModel.value = {
+    username: '',
+    password: '',
+    repassword: ''
+  }
+})
+```
+
+### 登录前的预校验 & 登录成功
+
+【需求说明1】登录之前的预校验
+
+- 登录请求之前，需要对用户的输入内容，进行校验
+- 校验通过才发送请求
+
+【需求说明2】**登录功能**
+
+1. 封装登录API，点击按钮发送登录请求
+2. 登录成功存储token，存入pinia 和 持久化本地storage
+3. 跳转到首页，给提示
+
+【测试账号】
+
+- 登录的测试账号:  shuaipeng
+- 登录测试密码:  123456
+
+PS: 每天账号会重置，如果被重置了，可以去注册页，注册一个新号
+
+实现步骤：
+
+1. 注册事件，进行登录前的预校验 (获取到组件调用方法)
+
+```jsx
+<el-form ref="form">
+    
+const login = async () => {
+  await form.value.validate()
+  console.log('开始登录')
+}
+```
+
+1. 封装接口 API
+
+```jsx
+export const userLoginService = ({ username, password }) =>
+  request.post('api/login', { username, password })
+```
+
+1. 调用方法将 token 存入 pinia 并 自动持久化本地
+
+```jsx
+const userStore = useUserStore()
+const router = useRouter()
+const login = async () => {
+  await form.value.validate()
+  const res = await userLoginService(formModel.value)
+  userStore.setToken(res.data.token)
+  ElMessage.success('登录成功')
+  router.push('/')
+}
+```
+
+# 首页 layout 架子 [element-plus 菜单]
+
+## 基本架子拆解
+
