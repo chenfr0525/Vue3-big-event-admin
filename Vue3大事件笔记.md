@@ -521,3 +521,54 @@ const login = async () => {
 
 ## 基本架子拆解
 
+### 登录访问拦截
+
+需求：只有登录页，可以未授权的时候访问，其他所有页面，都需要先登录再访问
+
+~~~javascript
+// 登录访问拦截
+router.beforeEach((to) => {
+  const userStore = useUserStore()
+  if (!userStore.token && to.path !== '/login') return '/login'
+})
+~~~
+
+### 用户基本信息获取&渲染
+
+1. api/user.js封装接口
+
+   ~~~javascript
+   export const userGetInfoService = () => request.get('/my/userinfo')
+   ~~~
+
+2. stores/modules/user.js 定义数据
+
+   ~~~javascript
+   const user = ref({})
+   const getUser = async () => {
+     const res = await userGetInfoService() // 请求获取数据
+     user.value = res.data.data
+   }
+   ~~~
+
+3. `layout/LayoutContainer`页面中调用
+
+   ~~~javascript
+   import { useUserStore } from '@/stores'
+   const userStore = useUserStore()
+   onMounted(() => {
+     userStore.getUser()
+   })
+   ~~~
+
+4. 动态渲染
+
+   ~~~javascript
+   <div>
+     黑马程序员：<strong>{{ userStore.user.nickname || userStore.user.username }}</strong>
+   </div>
+
+   <el-avatar :src="userStore.user.user_pic || avatar" />
+   ~~~
+
+   ​

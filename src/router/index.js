@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useUserStore } from '@/stores'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -21,20 +22,33 @@ const router = createRouter({
           component:()=>import('@/views/article/ArticleChannel.vue')
         },
         {
-          path:'/article/profile',
+          path:'/user/profile',
           component:()=>import('@/views/user/UserProfile.vue')
         },
         {
-          path:'/article/avatar',
+          path:'/user/avatar',
           component:()=>import('@/views/user/UserAvatar.vue')
         },
         {
-          path:'/article/password',
+          path:'/user/password',
           component:()=>import('@/views/user/UserPassword.vue')
         }
       ]
     }
   ],
+})
+
+//登录 => 默认是直接放行的
+//根据返回值决定，是放行还是拦截
+//返回值：
+//1.undefined / true 直接放行
+//2.false拦回from的地址页面
+//3.具体路径 或 路径对象 拦截到对应的地址
+//  '/login' {name:'login}
+router.beforeEach((to)=>{
+  //如果没有token，且访问的是非登录页，拦截到登录页，其他情况正常执行
+const useStore=useUserStore()
+if(!useStore.token && to.path!=='/login') return '/login'
 })
 
 export default router
