@@ -813,5 +813,312 @@ const onSuccess = () => {
 }
 ```
 
+# 文章管理页面 - [element-plus 强化]
 
+## 文章列表渲染
+
+### 基本架子搭建（表格）
+
+- el-table表格
+  - el-table-column->label标签名字 （prop数据名）或者（插槽，可获得给行的数据信息）
+
+~~~html
+<el-table :data="articleList" style="width: 100%">
+  <el-table-column label="文章标题" width="400">
+    <template #default="{ row }">
+      <el-link type="primary" :underline="false">{{ row.title }}</el-link>
+    </template>
+  </el-table-column>
+  <el-table-column label="分类" prop="cate_name"></el-table-column>
+  <el-table-column label="发表时间" prop="pub_date"> </el-table-column>
+  <el-table-column label="状态" prop="state"></el-table-column>
+ </el-table-column>
+~~~
+
+### 中英国际化处理
+
+默认是英文的，由于这里不涉及切换， 所以在 App.vue 中直接导入设置成中文即可，
+
+```jsx
+<script setup>
+import zh from 'element-plus/es/locale/lang/zh-cn.mjs'
+</script>
+
+<template>
+  <!-- 国际化处理 -->
+  <el-config-provider :locale="zh">
+    <router-view />
+  </el-config-provider>
+</template>
+```
+
+### 文章分类选择
+
+为了便于维护，直接拆分成一个小组件 ChannelSelect.vue
+
+1. 新建 article/components/ChannelSelect.vue
+
+```jsx
+<template>
+  <el-select>
+    <el-option label="新闻" value="新闻"></el-option>
+    <el-option label="体育" value="体育"></el-option>
+  </el-select>
+</template>
+```
+
+1. 页面中导入渲染
+
+```vue
+import ChannelSelect from './components/ChannelSelect.vue'
+
+<el-form-item label="文章分类：">
+  <channel-select></channel-select>
+</el-form-item>
+```
+
+1. 调用接口，动态渲染下拉分类，设计成 v-model 的使用方式
+
+```jsx
+<script setup>
+import { artGetChannelsService } from '@/api/article'
+import { ref } from 'vue'
+
+defineProps({
+  modelValue: {
+    type: [Number, String]
+  }
+})
+
+const emit = defineEmits(['update:modelValue'])
+const channelList = ref([])
+const getChannelList = async () => {
+  const res = await artGetChannelsService()
+  channelList.value = res.data.data
+}
+getChannelList()
+</script>
+<template>
+  <el-select
+    :modelValue="modelValue"
+    @update:modelValue="emit('update:modelValue', $event)"
+  >
+    <el-option
+      v-for="channel in channelList"
+      :key="channel.id"
+      :label="channel.cate_name"
+      :value="channel.id"
+    ></el-option>
+  </el-select>
+</template>
+```
+
+1. 父组件定义参数绑定
+
+```jsx
+const params = ref({
+  pagenum: 1,
+  pagesize: 5,
+  cate_id: '',
+  state: ''
+})
+
+<channel-select v-model="params.cate_id"></channel-select>
+```
+
+1. 发布状态，也绑定一下，便于将来提交表单
+
+```jsx
+<el-select v-model="params.state">
+  <el-option label="已发布" value="已发布"></el-option>
+  <el-option label="草稿" value="草稿"></el-option>
+</el-select>
+```
+
+### 分页渲染 [element-plus 分页]
+
+1. 分页组件
+
+```jsx
+<el-pagination
+  v-model:current-page="params.pagenum"
+  v-model:page-size="params.pagesize"
+  :page-sizes="[2, 3, 4, 5, 10]"
+  layout="jumper, total, sizes, prev, pager, next"
+  background
+  :total="total"
+  @size-change="onSizeChange"
+  @current-change="onCurrentChange"
+  style="margin-top: 20px; justify-content: flex-end"
+/>
+```
+
+1. 提供分页修改逻辑
+
+```jsx
+const onSizeChange = (size) => {
+  params.value.pagenum = 1
+  params.value.pagesize = size
+  getArticleList()
+}
+const onCurrentChange = (page) => {
+  params.value.pagenum = page
+  getArticleList()
+}
+```
+
+### 搜索和设置
+
+1. 注册事件
+
+```jsx
+<el-form-item>
+  <el-button @click="onSearch" type="primary">搜索</el-button>
+  <el-button @click="onReset">重置</el-button>
+</el-form-item>
+```
+
+1. 绑定处理
+
+```jsx
+const onSearch = () => {
+  params.value.pagenum = 1
+  getArticleList()
+}
+
+const onReset = () => {
+  params.value.pagenum = 1
+  params.value.cate_id = ''
+  params.value.state = ''
+  getArticleList()
+}
+```
+
+## 文章发布&修改[element-plus - 抽屉]
+
+### 封装抽屉容器
+
+添加 和 编辑，可以共用一个抽屉，所以可以将抽屉封装成一个组件
+
+组件对外暴露一个方法 open,  基于 open 的参数，初始化表单数据，并判断区分是添加 还是 编辑
+
+1. open({ })                   =>  添加操作，添加表单初始化无数据
+2. open({ id: xx,  ...  })  =>  编辑操作，编辑表单初始化需回显
+
+具体实现：
+
+1. 封装组件 `article/components/ArticleEdit.vue`
+
+```jsx
+<script setup>
+import { ref } from 'vue'
+const visibleDrawer = ref(false)
+
+const open = (row) => {
+  visibleDrawer.value = true
+  console.log(row)
+}
+
+defineExpose({
+  open
+})
+</script>
+
+<template>
+  <!-- 抽屉 -->
+  <el-drawer v-model="visibleDrawer" title="大标题" direction="rtl" size="50%">
+    <span>Hi there!</span>
+  </el-drawer>
+</template>
+```
+
+1. 通过 ref 绑定
+
+```jsx
+const articleEditRef = ref()
+
+<!-- 弹窗 -->
+<article-edit ref="articleEditRef"></article-edit>
+```
+
+1. 点击调用方法显示弹窗
+
+```jsx
+// 编辑新增逻辑
+const onAddArticle = () => {
+  articleEditRef.value.open({})
+}
+const onEditArticle = (row) => {
+  articleEditRef.value.open(row)
+}
+```
+
+### 上传文件 [element-plus - 文件预览]
+
+1. 关闭自动上传，准备结构
+
+```jsx
+import { Plus } from '@element-plus/icons-vue'
+
+<el-upload
+  class="avatar-uploader"
+  :auto-upload="false"
+  :show-file-list="false"
+  :on-change="onUploadFile"
+>
+  <img v-if="imgUrl" :src="imgUrl" class="avatar" />
+  <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
+</el-upload>
+```
+
+1. 准备数据 和 选择图片的处理逻辑
+
+```jsx
+const imgUrl = ref('')
+const onUploadFile = (uploadFile) => {
+  imgUrl.value = URL.createObjectURL(uploadFile.raw)
+  formModel.value.cover_img = uploadFile.raw
+}
+```
+
+### 富文本编辑器 [ vue-quill ]
+
+官网地址：https://vueup.github.io/vue-quill/
+
+1. 安装包
+
+```js
+pnpm add @vueup/vue-quill@latest
+```
+
+1. 注册成局部组件
+
+```jsx
+import { QuillEditor } from '@vueup/vue-quill'
+import '@vueup/vue-quill/dist/vue-quill.snow.css'
+```
+
+1. 页面中使用绑定
+
+```jsx
+<div class="editor">
+  <quill-editor
+    theme="snow"
+    v-model:content="formModel.content"
+    contentType="html"
+  >
+  </quill-editor>
+</div>
+```
+
+1. 样式美化
+
+```jsx
+.editor {
+  width: 100%;
+  :deep(.ql-editor) {
+    min-height: 200px;
+  }
+}
+```
 
