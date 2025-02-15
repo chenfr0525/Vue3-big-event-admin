@@ -1122,3 +1122,17 @@ import '@vueup/vue-quill/dist/vue-quill.snow.css'
 }
 ```
 
+# ChatGPT & Copilot
+
+## 工具 Github Copilot 智能生成代码的使用
+
+### 安装步骤
+
+- 登录 github，试用 Copilot
+- 打开 vscode， 搜索并安装插件 Copilot
+
+### 使用说明
+
+- 删除键：不接受
+- Tab键：接收
+- Ctrl + enter： 查看更多方案
